@@ -17,7 +17,7 @@ from collections import deque
 import plotly.plotly as py
 from plotly.graph_objs import *
 py.sign_in('akshay7chauhan',
-           'x3aET11W6FubPUNbt1di')
+           'c17dpSCUaTftQEtiuGQg')
 map_box_key = 'pk.eyJ1Ijoic2FydGhha3F1aWx0IiwiYSI6ImNqazU0cDQ0ZjFnMGIzcG10bzV2N2FvNXoifQ.1KSgyiwemP39HHcCvocgbg'
 # creating dash app
 app = dash.Dash()
@@ -99,33 +99,52 @@ app.layout = html.Div([
          ]
 
     ),
-    html.Div([dcc.Graph(id='map_box',
-                        figure={
-                            'data': [go.Scattermapbox(
-                                lat=[23],
-                                lon=[78],
-                                mode='markers',
-                                marker=dict(
-                                    size=6,
-                                    color='#d37808',
-                                    opacity=0.5
-                                )
-                            )],
-                            'layout': go.Layout(title='Tweet pulse',
-                                                paper_bgcolor="#020202",
-                                                font=dict(color='#CCCCCC',
-                                                          family='serif'),
-                                                mapbox={'accesstoken': map_box_key,
-                                                        'style': "dark",
-                                                        'zoom': 1,
-                                                        'center': dict(
-                                                            lon=77.1025,
-                                                            lat=28.704
-                                                        ),
-                                                        })})
+    html.Div([
+        html.Div([
+            dcc.Graph(id='map_box',
+                      figure={
+                          'data': [go.Scattermapbox(
+                              lat=[23],
+                              lon=[78],
+                              mode='markers',
+                              marker=dict(
+                                  size=6,
+                                  color='#d37808',
+                                  opacity=0.5
+                              )
+                          )],
+                          'layout': go.Layout(title='Tweet pulse',
+                                              paper_bgcolor="#020202",
+                                              font=dict(color='#CCCCCC',
+                                                        family='serif'),
+                                              mapbox={'accesstoken': map_box_key,
+                                                      'style': "dark",
+                                                      'zoom': 1,
+                                                      'center': dict(
+                                                          lon=77.1025,
+                                                          lat=28.704
+                                                      ),
+                                                      })})
+        ], style={'width': '75%', 'display': 'inline-block'}
+        ),
+        html.Div([
+            dcc.Graph(id='pie',
+                      figure={
+                          'data': [go.Pie(labels=['+ve', '-ve'],
+                                          values=[1, 2],
+                                          hoverinfo="percent+label",
+                                          # textinfo="label+percent",
+                                          marker=dict(
+                              colors=['#92d8d8', '#fac1b7']))],
+                          'layout':go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#CCCCCC',
+                                                                                                       family='serif'))
+                      })
+        ], style={'width': '25%', 'display': 'inline-block'}
+        )
 
-              ]
-             ),
+    ]
+    ),
+
     dcc.Interval(id='graph-update', interval=1*1000,
                  n_intervals=0),
     dcc.Interval(id='map-update', interval=5*1000,
@@ -229,6 +248,51 @@ def mapbox_updater(sentiment_term):
                                               )
                                               })}
 
+        return figure
+
+    except Exception as e:
+        with open('errors.txt', 'a') as f:
+            f.write(str(e))
+            f.write('\n')
+
+
+# callback decorator for  pie chart
+@app.callback(Output('pie', 'figure'),
+              [Input('sentiment_term', 'value'),
+               Input('slider', 'value')],
+              events=[Event('graph-update', 'interval')])
+def pie_updater(sentiment_term, slider_value):
+    try:
+        conn = sqlite3.connect('twitter.db')
+        c = conn.cursor()
+        df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE ? ORDER BY unix DESC LIMIT 200",
+                         conn, params=('%' + sentiment_term + '%',))
+        df.sort_values('unix', inplace=True)
+        df['sentiment_smoothed'] = df['sentiment'].rolling(int(len(df)/slider_value)).mean()
+
+        df['date'] = pd.to_datetime(df['unix'], unit='ms')
+        df.set_index('date', inplace=True)
+        df.dropna(inplace=True)
+        X = 1
+        Y = 1
+        if df['sentiment_smoothed'] > 0:
+            X = X + 1
+        elif df['sentiment_smoothed'] < 0:
+            Y = Y+1
+        else:
+            pass
+
+        pair = [X, Y]
+        figure = {
+            'data': [go.Pie(labels=['Positive Sentiment', 'Negative Sentiment'],
+                            values=pair,
+                            hoverinfo="percent+label",
+                            # textinfo="label+percent",
+                            marker=dict(
+                colors=['#92d8d8', '#fac1b7']))],
+            'layout': go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#CCCCCC',
+                                                                                          family='serif'))
+        }
         return figure
 
     except Exception as e:
