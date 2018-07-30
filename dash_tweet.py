@@ -121,8 +121,8 @@ app.layout = html.Div([
                                                       'style': "dark",
                                                       'zoom': 1,
                                                       'center': dict(
-                                                          lon=77.1025,
-                                                          lat=28.704
+                                                          lon=0,
+                                                          lat=40
                                                       ),
                                                       })})
         ], style={'width': '75%', 'display': 'inline-block'}
@@ -131,7 +131,7 @@ app.layout = html.Div([
             dcc.Graph(id='pie',
                       figure={
                           'data': [go.Pie(labels=['+ve', '-ve'],
-                                          values=[1, 2],
+                                          values=[1, 1],
                                           hoverinfo="percent+label",
                                           # textinfo="label+percent",
                                           marker=dict(
@@ -243,8 +243,8 @@ def mapbox_updater(sentiment_term):
                                               'style': "dark",
                                               'zoom': 1,
                                               'center': dict(
-                                                  lon=77.1025,
-                                                  lat=28.704
+                                                  lon=0,
+                                                  lat=40
                                               )
                                               })}
 
@@ -273,8 +273,8 @@ def pie_updater(sentiment_term, slider_value):
         df['date'] = pd.to_datetime(df['unix'], unit='ms')
         df.set_index('date', inplace=True)
         df.dropna(inplace=True)
-        X = 1
-        Y = 1
+        X = 0
+        Y = 0
         if df['sentiment_smoothed'] > 0:
             X = X + 1
         elif df['sentiment_smoothed'] < 0:
