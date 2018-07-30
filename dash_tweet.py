@@ -11,7 +11,12 @@ import sqlite3
 import pandas as pd
 import time
 #
-
+from collections import Counter
+import string
+import regex as re
+# from cache import cache
+# from config import stop_words
+import pickle
 from collections import deque
 
 import plotly.plotly as py
@@ -37,13 +42,41 @@ app = dash.Dash()
 # latitude.append(23)
 # longitude.append(78)
 
+# common sql connection (check_same_thread=False)
+conn = sqlite3.connect('twitter.db', check_same_thread=False)
+c = conn.cursor()
+
+
+# generating table for recent tweets
+def generate_table(df, max_rows=10):
+    return html.Table(className="responsive-table",
+                      children=[
+                          html.Thead(
+                              html.Tr(
+                                  children=[
+                                      html.Th(col.title()) for col in df.columns.values],
+                                  style={'color': app_colors['text']}
+                              )
+                          ),
+                          html.Tbody(
+                              [
+
+                                  html.Tr(
+                                      children=[
+                                          html.Td(data) for data in d
+                                      ], style={'color': app_colors['text'],
+                                                'background-color':quick_color(d[2])}
+                                  )
+                                  for d in df.values.tolist()])
+                      ]
+                      )
+
 
 # creating app layout
 app.layout = html.Div([
     # dashboard title
     html.Div([html.H1('Dashboard')],
-             style={'color': '#CCCCCC', 'font-family': 'serif',
-                    'font-size': '15px', 'text-align': 'center', 'font-style': 'initial'}
+             style={'color': '#CCCCCC', 'text-align': 'center'}
              ),
     # input map_box
     html.Div([html.H3('Enter the Word for Sentiment Analysis'),
@@ -52,10 +85,7 @@ app.layout = html.Div([
                         placeholder='Enter Query',
                         type='text')],
              style={'color': '#CCCCCC',
-                    'font-family': 'serif',
-                    'font-size': '15px',
-                    'text-align': 'center',
-                    'font-style': 'normal'}
+                    'text-align': 'center'}
              ),
     # slider
     html.Div([
@@ -88,8 +118,7 @@ app.layout = html.Div([
                        'layout':go.Layout(title='sentiment analysis',
                                           plot_bgcolor="#222226",
                                           font=dict(color='#CCCCCC',
-                                                    family='serif',
-                                                    size=12),
+                                                    ),
                                           paper_bgcolor="#020202",
                                           xaxis={'title': 'Random x value'},
                                           yaxis={'title': 'Random y value'},
@@ -115,8 +144,7 @@ app.layout = html.Div([
                           )],
                           'layout': go.Layout(title='Tweet pulse',
                                               paper_bgcolor="#020202",
-                                              font=dict(color='#CCCCCC',
-                                                        family='serif'),
+                                              font=dict(color='#CCCCCC'),
                                               mapbox={'accesstoken': map_box_key,
                                                       'style': "dark",
                                                       'zoom': 1,
@@ -136,18 +164,20 @@ app.layout = html.Div([
                                           # textinfo="label+percent",
                                           marker=dict(
                               colors=['#92d8d8', '#fac1b7']))],
-                          'layout':go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#CCCCCC',
-                                                                                                       family='serif'))
+                          'layout':go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#CCCCCC'))
                       })
         ], style={'width': '25%', 'display': 'inline-block'}
         )
 
     ]
     ),
+    html.Div(id="recent-tweets-table", children='Recent tweets box'),
 
     dcc.Interval(id='graph-update', interval=1*1000,
                  n_intervals=0),
     dcc.Interval(id='map-update', interval=5*1000,
+                 n_intervals=0),
+    dcc.Interval(id='pie-update', interval=10*1000,
                  n_intervals=0)
 
 ], style={'background-color': "#020202"}
@@ -162,8 +192,7 @@ app.layout = html.Div([
               events=[Event('graph-update', 'interval')])
 def scatter_updater(sentiment_term, slider_value):
     try:
-        conn = sqlite3.connect('twitter.db')
-        c = conn.cursor()
+
         df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE ? ORDER BY unix DESC LIMIT 200",
                          conn, params=('%' + sentiment_term + '%',))
         df.sort_values('unix', inplace=True)
@@ -189,8 +218,7 @@ def scatter_updater(sentiment_term, slider_value):
 
         figure = {'data': [data], 'layout': go.Layout(title='Term: {}'.format(sentiment_term),
                                                       plot_bgcolor="#222226",
-                                                      font=dict(color='#CCCCCC',
-                                                                family='serif', size=12),
+                                                      font=dict(color='#CCCCCC'),
                                                       paper_bgcolor="#020202",
                                                       xaxis={'title': 'timeline'},
                                                       yaxis={'title': 'sentiment', 'range': [-1, 1]})}
@@ -209,8 +237,7 @@ def scatter_updater(sentiment_term, slider_value):
               events=[Event('map-update', 'interval')])
 def mapbox_updater(sentiment_term):
     try:
-        conn = sqlite3.connect('twitter.db')
-        c = conn.cursor()
+
         df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE ? ORDER BY unix DESC LIMIT 200",
                          conn, params=('%' + sentiment_term + '%',))
         df.sort_values('unix', inplace=True)
@@ -237,8 +264,7 @@ def mapbox_updater(sentiment_term):
         figure = {'data': [data],
                   'layout': go.Layout(title='Tweet pulse for ' + sentiment_term,
                                       paper_bgcolor="#020202",
-                                      font=dict(color='#CCCCCC',
-                                                family='serif', size=12),
+                                      font=dict(color='#CCCCCC'),
                                       mapbox={'accesstoken': map_box_key,
                                               'style': "dark",
                                               'zoom': 1,
@@ -260,11 +286,10 @@ def mapbox_updater(sentiment_term):
 @app.callback(Output('pie', 'figure'),
               [Input('sentiment_term', 'value'),
                Input('slider', 'value')],
-              events=[Event('graph-update', 'interval')])
+              events=[Event('pie-update', 'interval')])
 def pie_updater(sentiment_term, slider_value):
     try:
-        conn = sqlite3.connect('twitter.db')
-        c = conn.cursor()
+
         df = pd.read_sql("SELECT * FROM sentiment WHERE tweet LIKE ? ORDER BY unix DESC LIMIT 200",
                          conn, params=('%' + sentiment_term + '%',))
         df.sort_values('unix', inplace=True)
@@ -275,23 +300,23 @@ def pie_updater(sentiment_term, slider_value):
         df.dropna(inplace=True)
         X = 0
         Y = 0
-        if df['sentiment_smoothed'] > 0:
-            X = X + 1
-        elif df['sentiment_smoothed'] < 0:
-            Y = Y+1
-        else:
-            pass
+        for sent in df['sentiment_smoothed']:
+            if sent > 0:
+                X = X + 1
+            elif sent < 0:
+                Y = Y+1
+            else:
+                pass
 
         pair = [X, Y]
         figure = {
-            'data': [go.Pie(labels=['Positive Sentiment', 'Negative Sentiment'],
+            'data': [go.Pie(labels=['+ve', '-ve'],
                             values=pair,
                             hoverinfo="percent+label",
                             # textinfo="label+percent",
                             marker=dict(
                 colors=['#92d8d8', '#fac1b7']))],
-            'layout': go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#CCCCCC',
-                                                                                          family='serif'))
+            'layout': go.Layout(title='Sentiment Pie', paper_bgcolor="#020202", font=dict(color='#1242e2'))
         }
         return figure
 
@@ -300,6 +325,29 @@ def pie_updater(sentiment_term, slider_value):
             f.write(str(e))
             f.write('\n')
 
+
+# callback decorator for recent tweets
+@app.callback(Output('recent-tweets-table', 'children'),
+              [Input('sentiment_term', 'value')],
+              events=[Event('graph-update', 'interval')])
+def update_recent_tweets(sentiment_term):
+    if sentiment_term:
+        df = pd.read_sql("SELECT sentiment.* FROM sentiment_fts fts LEFT JOIN sentiment ON fts.rowid = sentiment.id WHERE fts.sentiment_fts MATCH ? ORDER BY fts.rowid DESC LIMIT 10",
+                         conn, params=(sentiment_term+'*',))
+    else:
+        df = pd.read_sql("SELECT * FROM sentiment ORDER BY id DESC, unix DESC LIMIT 10", conn)
+
+    df['date'] = pd.to_datetime(df['unix'], unit='ms')
+
+    df = df.drop(['unix', 'id'], axis=1)
+    df = df[['date', 'tweet', 'sentiment']]
+
+    return generate_table(df, max_rows=10)
+
+
+external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
+for css in external_css:
+    app.css.append_css({"external_url": css})
 
 
 # running dash server
