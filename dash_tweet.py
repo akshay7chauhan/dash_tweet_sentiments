@@ -46,8 +46,23 @@ app = dash.Dash()
 conn = sqlite3.connect('twitter.db', check_same_thread=False)
 c = conn.cursor()
 
+sentiment_colors = {-1: "#EE6055",
+                    -0.5: "#FDE74C",
+                    0: "#FFE6AC",
+                    0.5: "#D0F2DF",
+                    1: "#9CEC5B", }
+
+app_colors = {
+    'background': '#0C0F0A',
+    'text': '#FFFFFF',
+    'sentiment-plot': '#41EAD4',
+    'volume-bar': '#FBFC74',
+    'someothercolor': '#FF206E',
+}
 
 # generating table for recent tweets
+
+
 def generate_table(df, max_rows=10):
     return html.Table(className="responsive-table",
                       children=[
@@ -171,7 +186,7 @@ app.layout = html.Div([
 
     ]
     ),
-    html.Div(id="recent-tweets-table", children='Recent tweets box'),
+    # html.Div(id="recent-tweets-table"),
 
     dcc.Interval(id='graph-update', interval=1*1000,
                  n_intervals=0),
@@ -327,22 +342,22 @@ def pie_updater(sentiment_term, slider_value):
 
 
 # callback decorator for recent tweets
-@app.callback(Output('recent-tweets-table', 'children'),
-              [Input('sentiment_term', 'value')],
-              events=[Event('graph-update', 'interval')])
-def update_recent_tweets(sentiment_term):
-    if sentiment_term:
-        df = pd.read_sql("SELECT sentiment.* FROM sentiment_fts fts LEFT JOIN sentiment ON fts.rowid = sentiment.id WHERE fts.sentiment_fts MATCH ? ORDER BY fts.rowid DESC LIMIT 10",
-                         conn, params=(sentiment_term+'*',))
-    else:
-        df = pd.read_sql("SELECT * FROM sentiment ORDER BY id DESC, unix DESC LIMIT 10", conn)
-
-    df['date'] = pd.to_datetime(df['unix'], unit='ms')
-
-    df = df.drop(['unix', 'id'], axis=1)
-    df = df[['date', 'tweet', 'sentiment']]
-
-    return generate_table(df, max_rows=10)
+# @app.callback(Output('recent-tweets-table', 'children'),
+#               [Input('sentiment_term', 'value')],
+#               events=[Event('graph-update', 'interval')])
+# def update_recent_tweets(sentiment_term):
+#     if sentiment_term:
+#         df = pd.read_sql("SELECT sentiment.* FROM sentiment_fts fts LEFT JOIN sentiment ON fts.rowid = sentiment.id WHERE fts.sentiment_fts MATCH ? ORDER BY fts.rowid DESC LIMIT 10",
+#                          conn, params=(sentiment_term+'*',))
+#     else:
+#         df = pd.read_sql("SELECT * FROM sentiment ORDER BY id DESC, unix DESC LIMIT 10", conn)
+#
+#     df['date'] = pd.to_datetime(df['unix'], unit='ms')
+#
+#     df = df.drop(['unix', 'id'], axis=1)
+#     df = df[['date', 'tweet', 'sentiment']]
+#
+#     return generate_table(df, max_rows=10)
 
 
 external_css = ["https://cdnjs.cloudflare.com/ajax/libs/materialize/0.100.2/css/materialize.min.css"]
