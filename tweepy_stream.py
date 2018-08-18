@@ -25,10 +25,10 @@ analyzer = SentimentIntensityAnalyzer()
 
 
 # Twitter consumer key, consumer secret, access token, access secret
-ckey = "sMg1LorjGGb65gQj5pWttNwjf"
-csecret = "GrYLOEZBM6Xd7VSZKg4jOj8TDznHeL6rrBdnj82lcstHglGNzT"
-atoken = "67005096-78hw0Z5xlrPOR2eqxFuEjD2Epo6gaCx3FTZCLLLjO"
-asecret = "pbTscQwId5E1LuvKK7d5JALzkANV5cdrYjH0lZYfPABOB"
+ckey = "BP7FqFBVSozZP3P6JJfqHoyHy"
+csecret = "UaKEtwoTOi8pvcoDNTfDUyxDgcbTYnhfJMOjVbvm4Gk8OmCz7n"
+atoken = "556677216-Zojv1wLL7WwUCNdPDg1uUfCTYP3B8iXv1Agbsugl"
+asecret = "sK1H0z2YHKBINowzGpozeEns5fIFzdxM3txZP8YbqhbH5"
 
 
 # In[4]:
@@ -45,6 +45,7 @@ def create_table():
     try:
         c.execute(
             "CREATE TABLE IF NOT EXISTS sentiment(unix REAL, tweet TEXT, sentiment REAL,location TEXT ,lat FLOAT, lng FLOAT)")
+        c.execute("CREATE VIRTUAL TABLE sentiment_fts USING fts5(tweet, content=sentiment, content_rowid=id, prefix=1, prefix=2, prefix=3)")
         c.execute("CREATE INDEX fast_unix ON sentiment(unix)")
         c.execute("CREATE INDEX fast_tweet ON sentiment(tweet)")
         c.execute("CREATE INDEX fast_sentiment ON sentiment(sentiment)")
@@ -59,7 +60,7 @@ create_table()
 # In[6]:
 
 
-gmaps_api_key = "AIzaSyDO54ayyPFCLklgiuwXu_LMaLVL2hYtS3o"
+gmaps_api_key = "AIzaSyCr2ILzgmDlTiO5gJOcWqoRBXDFvhdOYog"
 
 
 # In[7]:
@@ -118,7 +119,7 @@ while True:
         auth = OAuthHandler(ckey, csecret)
         auth.set_access_token(atoken, asecret)
         twitterStream = Stream(auth, listener())
-        twitterStream.filter(track=["a, e, i, o, u"])
+        twitterStream.filter(languages=["en"], track=["a, e, i, o, u"])
     except Exception as e:
         print(str(e))
         # time.sleep(5)
